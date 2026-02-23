@@ -1,16 +1,26 @@
-# CadQuery MCP Server
-
-> **Give AI assistants full programmatic control over CadQuery for 3D CAD modeling — no GUI required.**
+# Autonoma
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![MCP](https://img.shields.io/badge/protocol-MCP-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
----
+**State-of-the-art Text-to-CAD AI agent that converts natural language into complex 3D CAD models of real hardware.**
 
-CadQuery MCP Server exposes the full CadQuery Python library as a [Model Context Protocol](https://modelcontextprotocol.io/) server, giving AI assistants like Claude a complete toolkit for parametric 3D CAD design. The AI can iteratively construct complex parts, multi-body assemblies, and mechanical components — with visual feedback at every step — entirely through tool calls, with no human in the modeling loop.
+Autonoma is the most capable open-source AI agent for 3D mechanical design. Describe what you want to build in plain English, and the AI agent designs it for you in real-time. The vision: **democratize robotics and hardware the way vibecoding has democratized programming.**
 
----
+The closest competitor is [Zoo.dev's Text-to-CAD](https://zoo.dev/text-to-cad) -- closed-source and commercialized. Autonoma is open-source and, I believe, more capable.
+
+> Autonoma received an investment offer of **$130K SAFE at $5M valuation** from Humanoid Global Holdings ($130K for 2.6% equity).
+
+## Key Features
+
+- **300-500 CAD modeling operations** across 9 specialized AI tools
+- **SoTA visual feedback system** -- the AI receives rendered feedback from **10 different view angles** plus detailed textual topology analysis to self-correct its designs
+- **Real-time 3D viewer** -- watch the AI build your model live and interrupt if it makes a mistake
+- **Pre-built parts library** -- 30+ common components (Arduino, Raspberry Pi, motors, sensors, batteries, wheels, grippers) ready to import
+- **Intelligent context management** -- on-demand documentation loading system so the AI always has the right reference for the operation at hand
+- **Full session state management** -- persistent object storage, hierarchy tracking, operation history
+- **STEP import/export** -- industry-standard format for use in any CAD software
 
 ## Demo
 
@@ -30,125 +40,65 @@ CadQuery MCP Server exposes the full CadQuery Python library as a [Model Context
 ![Deformed Robotic Car #1](demo/car-1.png)
 ![Deformed Robotic Car #2](demo/car-2.png)
 
----
-
-## Features
-
-- **Full CadQuery coverage** — Workplane fluent API, Sketch, Assembly, direct geometry construction, free functions, and selectors are all available as MCP tools
-- **Iterative visual feedback** — render PNG or SVG snapshots from any of 10 standard views (orthographic + isometric) after every modeling step, keeping the AI grounded in the actual geometry
-- **Persistent session state** — objects persist across requests with named references, a parent/child hierarchy, and a 50-step undo/redo stack
-- **20+ geometric selectors** — filter faces, edges, vertices, and wires by direction, radius, area, length, proximity, type, and more
-- **Import/export** — read and write STEP files; export Assemblies with full constraint resolution
-- **Built-in documentation loader** — the AI loads its own API reference on demand, reducing hallucinations and invalid method calls
-- **Optional live viewer** — integrates with `ocp_vscode` for real-time 3D preview alongside the AI session
-- **Zero-config transport** — runs over stdio; no port, no daemon, no setup beyond `python server_12.py`
-
----
-
-## How It Works
+## Architecture
 
 ```
-┌─────────────────────┐      MCP (stdio)      ┌──────────────────────────┐
-│   AI Client         │ ◄──────────────────► │  CadQuery MCP Server     │
-│  (Claude Desktop,   │                       │                          │
-│   custom agent...)  │                       │  FastMCP framework       │
-└─────────────────────┘                       │  │                       │
-                                              │  ├─ Session State        │
-                                              │  │   (named objects,     │
-                                              │  │    undo/redo stack)   │
-                                              │  │                       │
-                                              │  └─► CadQuery Engine     │
-                                              │       (OCCT kernel)      │
-                                              └──────────────────────────┘
+                          ┌──────────────────────┐
+                          │   User (Text Prompt) │
+                          └──────────┬───────────┘
+                                     │
+                                     ▼
+                          ┌──────────────────────┐
+                          │   LLM (AI Agent)     │
+                          │  (Claude, GPT, etc.) │
+                          └──────────┬───────────┘
+                                     │  structured tool calls
+                                     ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                     Autonoma Server (MCP)                          │
+│                                                                    │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │
+│  │ fluent_api  │ │ direct_api  │ │geometry_api │ │selector_api │   │
+│  │ (Workplane, │ │ (Edge,Wire, │ │(Vector,Plane│ │(20+ selector│   │
+│  │  Sketch,    │ │  Face,Solid)│ │ Location,   │ │  classes)   │   │
+│  │  Assembly)  │ │             │ │ Matrix)     │ │             │   │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │
+│  │free_function│ │state_manager│ │import_export│ │  load_docs  │   │
+│  │  (stateless │ │ (objects,   │ │(STEP files, │ │(on-demand   │   │
+│  │   shapes)   │ │  history)   │ │ parts lib)  │ │ API docs)   │   │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │
+│  ┌─────────────┐                                                   │
+│  │  feedback   │──── 10-angle visual + textual topology analysis   │
+│  └─────────────┘                                                   │
+│                                                                    │
+└─────────────────────────────────────┬──────────────────────────────┘
+                                      │
+                          ┌───────────▼──────────┐
+                          │    OpenCASCADE       │
+                          │  (CAD Kernel / BREP) │
+                          └───────────┬──────────┘
+                                      │
+                          ┌───────────▼──────────┐
+                          │  Real-time 3D Viewer │
+                          │  (OCP CAD Viewer)    │
+                          └──────────────────────┘
 ```
 
-Each MCP tool call targets a specific layer of CadQuery's API. The AI chains calls together, inspects results through `cq_feedback`, and iterates until the geometry is correct — the same workflow a human engineer would follow in a script, but fully automated.
+Single-file server (~3,500 lines) that gives AI agents complete programmatic control over the OpenCASCADE CAD kernel. The AI doesn't generate code -- it directly executes CAD operations through structured tool calls, enabling precise control and real-time feedback loops that code-generation approaches cannot match.
 
----
+## Known Limitations
 
-## Tools Reference
+- Spatial positioning of parts in assemblies can be imprecise (solvable)
+- AI agent occasionally misinterprets visual/textual feedback (solvable)
 
-| Tool | Description |
-|------|-------------|
-| `cq_fluent_api` | High-level chainable modeling: `Workplane`, `Sketch`, and `Assembly` operations. The primary tool for most CAD tasks. |
-| `cq_direct_api` | Low-level direct constructors for `Shape`, `Solid`, `Face`, `Wire`, `Edge`, `Vertex`, and compound types. |
-| `cq_geometry_api` | Mathematical primitives: `Vector`, `Plane`, `Location`, `Matrix`, `BoundBox` — used for positioning and transforms. |
-| `cq_selector_api` | 20+ selector classes for filtering geometry by direction, radius, area, length, proximity, type, and boolean combinations. |
-| `cq_free_function_api` | Stateless free-function API (`box`, `sphere`, `extrude`, `fuse`, `sweep`, `loft`, `fillet`, `text`, and 40+ more). |
-| `cq_state_manager` | Session control: list objects, set active object, delete, clear, view hierarchy, undo, and redo. |
-| `cq_import_export` | Import STEP files into the session; export Workplane shapes and Assemblies to STEP. |
-| `cq_feedback` | Render multi-angle PNG or SVG snapshots (10 standard views + custom projections) with topology analysis and geometric properties. |
-| `cq_load_docs` | Load CadQuery API documentation into context on demand — helps the AI select correct methods and parameters. |
+## About
 
----
+I'm **Katif**, an AI and robotics engineer with 5 years of experience. I built Autonoma as a solo founder (CEO & CTO) to prove that AI agents can design complete, real-world robots from text alone.
 
-## Getting Started
+**Target market:** Mechanical engineering design -- $10B market (2024), 45M potential users. The goal was to use AI to fully disrupt this space by replacing manual CAD work with AI agents, eliminating the learning curve and cost barrier of robotics.
 
-### Prerequisites
-
-- Python 3.10+
-- [CadQuery](https://github.com/CadQuery/cadquery) (install via conda or pip with OCC)
-- [FastMCP](https://github.com/jlowin/fastmcp)
-
-Optional, for PNG visual feedback:
-- [Playwright](https://playwright.dev/python/) + [Pillow](https://python-pillow.org/) *(recommended)*
-- or `svglib` + `reportlab` + `Pillow` *(pure-Python fallback)*
-
-Optional, for live 3D preview:
-- [ocp-vscode](https://github.com/bernhard-42/vscode-ocp-cad-viewer)
-
-### Installation
-
-```bash
-# 1. Create and activate a conda environment (recommended for CadQuery)
-conda create -n cq-mcp python=3.11
-conda activate cq-mcp
-
-# 2. Install CadQuery
-conda install -c conda-forge cadquery
-
-# 3. Install server dependencies
-pip install fastmcp mcp
-
-# 4. (Optional) Install visual feedback dependencies
-pip install playwright pillow nest-asyncio
-playwright install chromium
-
-# 5. Clone the repo
-git clone https://github.com/your-username/cadquery-mcp-server.git
-cd cadquery-mcp-server
-```
-
-### Running the Server
-
-```bash
-python server_12.py
-```
-
-The server starts over stdio and is ready to accept MCP connections.
-
----
-
-## Connecting to Claude Desktop
-
-Add the server to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "cadquery": {
-      "command": "python",
-      "args": ["/absolute/path/to/server_12.py"]
-    }
-  }
-}
-```
-
-> **Tip:** Use the full absolute path to `server_12.py` and make sure `python` resolves to the conda environment where CadQuery is installed. You can use the full path to the environment's Python executable instead (e.g., `C:/Users/you/miniconda3/envs/cq-mcp/python.exe`).
-
-Restart Claude Desktop after saving the config. The nine CadQuery tools will appear in the tools panel.
-
----
+I'm open-sourcing the complete codebase now that the startup has shut down. I hope others will build on this work.
 
 ## License
 
